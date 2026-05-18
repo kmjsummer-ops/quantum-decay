@@ -1,0 +1,2100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantumDecay — 표준 모형 입자 붕괴 시뮬레이터</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #03040f;
+  --bg2: #080c1a;
+  --bg3: #0d1225;
+  --border: rgba(100,160,255,0.15);
+  --accent: #4da6ff;
+  --accent2: #a78bfa;
+  --accent3: #34d399;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --glow: rgba(77,166,255,0.3);
+  --font-mono: 'Space Mono', monospace;
+  --font-body: 'Noto Sans KR', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── 우주 배경 캔버스 ── */
+#starfield {
+  position: fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── 레이아웃 ── */
+.app { position: relative; z-index: 1; }
+
+/* ── 헤더 ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(3,4,15,0.8);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+.logo span { color: var(--accent2); }
+nav { display:flex; gap:8px; flex-wrap:wrap; }
+nav button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.04em;
+}
+nav button:hover, nav button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(77,166,255,0.1);
+}
+
+/* ── 화면들 ── */
+.screen { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+.screen.active { display: block; }
+
+/* ── 홈 화면 ── */
+#home-screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  text-align: center;
+}
+#home-screen.active { display: flex; }
+
+.hero-title {
+  font-family: var(--font-mono);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1.1;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #4da6ff, #a78bfa, #34d399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-sub {
+  color: var(--text-dim);
+  font-size: 1rem;
+  max-width: 500px;
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+.hero-buttons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.btn-primary {
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 0 20px var(--glow);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 35px var(--glow); }
+.btn-secondary {
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+/* 홈 통계 카드 */
+.stats-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 60px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.stat-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 28px;
+  text-align: center;
+  min-width: 140px;
+}
+.stat-num {
+  font-family: var(--font-mono);
+  font-size: 1.8rem;
+  color: var(--accent);
+  display: block;
+}
+.stat-label { font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; }
+
+/* 입자 유영 애니메이션 (홈) */
+.floating-particles {
+  position: absolute;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+.fp {
+  position: absolute;
+  border-radius: 50%;
+  animation: float linear infinite;
+  opacity: 0.6;
+}
+@keyframes float {
+  0%   { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(-10vh) rotate(720deg); opacity: 0; }
+}
+
+/* ── 표준 모형 화면 ── */
+.screen-title {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  color: var(--accent);
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+}
+.screen-desc { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 24px; }
+
+.sm-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.legend-dot {
+  width: 10px; height: 10px;
+  border-radius: 3px;
+}
+
+.sm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 30px;
+}
+.particle-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.particle-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--p-color, var(--accent));
+}
+.particle-card:hover {
+  border-color: var(--p-color, var(--accent));
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.particle-card.selected {
+  border-color: var(--p-color, var(--accent));
+  background: rgba(77,166,255,0.08);
+}
+.p-symbol {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  color: var(--p-color, white);
+  display: block;
+  margin-bottom: 4px;
+}
+.p-name { font-size: 0.65rem; color: var(--text-dim); display: block; }
+.p-mass { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-dim); margin-top: 4px; }
+.p-charge {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--p-color, white);
+  margin-top: 2px;
+}
+
+/* 선택된 입자 상세 패널 */
+.particle-detail {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+.particle-detail.visible { display: block; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.detail-symbol {
+  font-family: var(--font-mono);
+  font-size: 3rem;
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--p-color, var(--accent));
+  color: var(--p-color, var(--accent));
+  flex-shrink: 0;
+}
+.detail-title { font-size: 1.3rem; font-weight: 700; }
+.detail-category {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  margin-top: 4px;
+}
+
+.props-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.prop-box {
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+.prop-val {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--accent);
+  display: block;
+}
+.prop-label { font-size: 0.7rem; color: var(--text-dim); margin-top: 4px; }
+
+.detail-desc { color: var(--text-dim); font-size: 0.9rem; line-height: 1.7; }
+
+.category-header {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 20px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── 시뮬레이션 화면 ── */
+.sim-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+}
+@media(max-width: 768px) {
+  .sim-layout { grid-template-columns: 1fr; }
+}
+
+/* 붕괴 선택 목록 */
+.decay-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.decay-option {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.decay-option:hover { border-color: var(--accent); }
+.decay-option.selected { border-color: var(--accent); background: rgba(77,166,255,0.08); }
+.decay-icon {
+  font-size: 1.5rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--bg2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.decay-info { flex: 1; }
+.decay-name { font-weight: 500; font-size: 0.9rem; }
+.decay-eq { font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); margin-top: 3px; }
+.decay-br { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+
+/* 시뮬레이션 캔버스 영역 */
+.sim-canvas-wrap {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+}
+#simCanvas {
+  display: block;
+  width: 100%;
+  height: 420px;
+}
+.canvas-overlay {
+  position: absolute;
+  top: 12px; left: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+.canvas-step-badge {
+  position: absolute;
+  top: 12px; right: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: rgba(3,4,15,0.8);
+}
+
+/* 컨트롤 버튼 */
+.sim-controls {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+}
+.ctrl-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ctrl-btn.play {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none;
+  color: white;
+  font-weight: 700;
+}
+.ctrl-btn.play:hover { opacity: 0.9; transform: none; }
+
+/* 속도 슬라이더 */
+.speed-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+}
+.speed-label { font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono); white-space: nowrap; }
+input[type=range] {
+  flex: 1;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg3);
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.speed-val { font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent); min-width: 28px; }
+
+/* 오른쪽 패널 */
+.right-panel { display: flex; flex-direction: column; gap: 14px; }
+
+/* 보존 법칙 */
+.conservation-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.box-title {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.law-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(100,160,255,0.07);
+}
+.law-row:last-child { border-bottom: none; }
+.law-icon { font-size: 1rem; flex-shrink: 0; }
+.law-name { font-size: 0.78rem; flex: 1; }
+.law-values {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+.law-status {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.law-status.ok { background: rgba(52,211,153,0.15); color: var(--accent3); }
+.law-status.wait { background: rgba(100,116,139,0.15); color: var(--text-dim); }
+
+/* 파인먼 다이어그램 */
+.feynman-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+#feynmanSvg { width: 100%; height: 180px; }
+
+/* 산출 입자 목록 */
+.products-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.product-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(100,160,255,0.07);
+  animation: slideIn 0.4s ease forwards;
+  opacity: 0;
+}
+@keyframes slideIn {
+  from { opacity:0; transform: translateX(-10px); }
+  to { opacity:1; transform: translateX(0); }
+}
+.product-item:last-child { border-bottom: none; }
+.product-dot {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.product-info { flex: 1; }
+.product-name { font-size: 0.82rem; font-weight: 500; }
+.product-props { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); margin-top: 2px; }
+
+/* ── 자유 실험실 ── */
+.lab-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media(max-width:700px) { .lab-layout { grid-template-columns: 1fr; } }
+
+.lab-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+}
+.lab-box-title {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.quiz-question {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+.quiz-options { display: flex; flex-direction: column; gap: 8px; }
+.quiz-opt {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+.quiz-opt:hover { border-color: var(--accent); color: var(--accent); }
+.quiz-opt.correct { border-color: var(--accent3); background: rgba(52,211,153,0.15); color: var(--accent3); }
+.quiz-opt.wrong { border-color: #f87171; background: rgba(248,113,113,0.1); color: #f87171; }
+.quiz-result {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  display: none;
+}
+.quiz-result.show { display: block; }
+.quiz-result.ok { background: rgba(52,211,153,0.1); color: var(--accent3); border: 1px solid rgba(52,211,153,0.3); }
+.quiz-result.no { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
+
+/* 자유 실험실 입자 충돌기 */
+.collider-area {
+  background: var(--bg2);
+  border-radius: 10px;
+  height: 180px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+#colliderCanvas { width:100%; height:100%; display:block; }
+.select-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.particle-select {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  cursor: pointer;
+  min-width: 100px;
+}
+.particle-select:focus { outline: none; border-color: var(--accent); }
+.collide-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.collide-btn:hover { transform: scale(1.05); }
+.collide-result {
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 14px;
+  min-height: 80px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* ── 에너지 척도 ── */
+.energy-scale {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  grid-column: 1 / -1;
+}
+.scale-bar {
+  position: relative;
+  height: 40px;
+  border-radius: 8px;
+  background: linear-gradient(to right,
+    #4ade80 0%,
+    #facc15 30%,
+    #fb923c 60%,
+    #f87171 80%,
+    #c084fc 90%,
+    #e879f9 100%
+  );
+  margin: 14px 0;
+  overflow: visible;
+}
+.scale-marker {
+  position: absolute;
+  top: -22px;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  text-align: center;
+  white-space: nowrap;
+}
+.scale-tick {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(255,255,255,0.3);
+}
+.scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+/* ── 진행 표시줄 (시뮬레이션) ── */
+.progress-bar {
+  height: 3px;
+  background: var(--bg2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  width: 0%;
+  transition: width 0.1s linear;
+  border-radius: 2px;
+}
+
+/* ── 토스트 알림 ── */
+.toast {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text);
+  z-index: 1000;
+  transform: translateY(80px);
+  transition: transform 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.toast.show { transform: translateY(0); }
+
+/* ── 섹션 구분 ── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 24px 0;
+}
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<div class="app">
+  <!-- 헤더 -->
+  <header>
+    <div class="logo">Quantum<span>Decay</span> ⚛</div>
+    <nav>
+      <button class="active" onclick="showScreen('home')">🏠 홈</button>
+      <button onclick="showScreen('model')">📊 표준 모형</button>
+      <button onclick="showScreen('sim')">⚛️ 붕괴 시뮬레이션</button>
+      <button onclick="showScreen('lab')">🧪 자유 실험실</button>
+    </nav>
+  </header>
+
+  <!-- ════════ 홈 화면 ════════ -->
+  <div id="home-screen" class="screen active">
+    <div style="position:relative;min-height:75vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+      <div class="floating-particles" id="floatParticles"></div>
+      <div style="position:relative;z-index:2;">
+        <p style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);letter-spacing:0.15em;margin-bottom:16px;">STANDARD MODEL SIMULATOR</p>
+        <h1 class="hero-title">눈에 보이지 않는<br>입자를 눈으로</h1>
+        <p class="hero-sub">
+          쿼크, 경입자, 매개입자의 붕괴 과정을 3D 시뮬레이션으로 직접 체험하세요.<br>
+          물리 실험실이 없어도, 장비가 없어도 괜찮습니다.
+        </p>
+        <div class="hero-buttons">
+          <button class="btn-primary" onclick="showScreen('sim')">⚛️ 시뮬레이션 시작</button>
+          <button class="btn-secondary" onclick="showScreen('model')">📊 표준 모형 탐색</button>
+        </div>
+      </div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card"><span class="stat-num">17</span><div class="stat-label">표준 모형 입자</div></div>
+      <div class="stat-card"><span class="stat-num">5</span><div class="stat-label">붕괴 시뮬레이션</div></div>
+      <div class="stat-card"><span class="stat-num">3</span><div class="stat-label">보존 법칙 검증</div></div>
+      <div class="stat-card"><span class="stat-num">10⁻¹⁸</span><div class="stat-label">쿼크 크기 (m)</div></div>
+    </div>
+  </div>
+
+  <!-- ════════ 표준 모형 화면 ════════ -->
+  <div id="model-screen" class="screen">
+    <div class="screen-title">📊 표준 모형 입자 탐색기</div>
+    <p class="screen-desc">입자를 클릭하면 전하, 스핀, 질량 등 상세 정보를 확인할 수 있습니다.</p>
+
+    <div class="sm-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#FF6B6B"></div> 쿼크 (Quark)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#74B9FF"></div> 경입자 (Lepton)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FFEAA7"></div> 게이지 보손</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FAB1A0"></div> 힉스 보손</div>
+    </div>
+
+    <div class="category-header">쿼크 (Quarks) — 강한 핵력에 반응, 하드론을 구성</div>
+    <div class="sm-grid" id="quark-grid"></div>
+
+    <div class="category-header">경입자 (Leptons) — 강한 핵력에 반응 안 함</div>
+    <div class="sm-grid" id="lepton-grid"></div>
+
+    <div class="category-header">매개입자 (Bosons) — 힘을 전달하는 입자</div>
+    <div class="sm-grid" id="boson-grid"></div>
+
+    <div class="particle-detail" id="particleDetail"></div>
+  </div>
+
+  <!-- ════════ 시뮬레이션 화면 ════════ -->
+  <div id="sim-screen" class="screen">
+    <div class="screen-title">⚛️ 입자 붕괴 시뮬레이션</div>
+    <p class="screen-desc">붕괴 유형을 선택하고 ▶ 재생을 눌러 실시간으로 붕괴 과정을 확인하세요.</p>
+
+    <div style="margin-bottom:14px;">
+      <div class="decay-list" id="decayList"></div>
+    </div>
+
+    <div class="sim-layout">
+      <!-- 왼쪽: 캔버스 -->
+      <div>
+        <div class="sim-canvas-wrap">
+          <canvas id="simCanvas"></canvas>
+          <div class="canvas-overlay">QuantumDecay Simulator v1.0</div>
+          <div class="canvas-step-badge" id="stepBadge">대기 중</div>
+        </div>
+        <div class="speed-row">
+          <span class="speed-label">재생 속도:</span>
+          <input type="range" id="speedSlider" min="0.25" max="3" step="0.25" value="1">
+          <span class="speed-val" id="speedVal">1×</span>
+        </div>
+        <div class="sim-controls">
+          <button class="ctrl-btn play" id="playBtn" onclick="startSimulation()">▶ 재생</button>
+          <button class="ctrl-btn" onclick="resetSim()">↺ 초기화</button>
+          <button class="ctrl-btn" onclick="stepSim()">⏭ 단계별</button>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+
+      <!-- 오른쪽: 정보 패널 -->
+      <div class="right-panel">
+        <div class="conservation-box">
+          <div class="box-title">⚖️ 보존 법칙 검증</div>
+          <div id="conservationPanel">
+            <div class="law-row">
+              <span class="law-icon">⚡</span>
+              <span class="law-name">전하 보존</span>
+              <span class="law-status wait" id="law-charge">대기</span>
+            </div>
+            <div class="law-row">
+              <span class="law-icon">🔢</span>
+              <span class="law-name">렙톤 수 보존</span>
+              <span class="law-status wait" id="law-lepton">대기</span>
+            </div>
+            <div class="law-row">
+              <span class="law-icon">⚡</span>
+              <span class="law-name">에너지 보존</span>
+              <span class="law-status wait" id="law-energy">대기</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="feynman-box">
+          <div class="box-title">📐 파인먼 다이어그램</div>
+          <svg id="feynmanSvg" viewBox="0 0 300 160"></svg>
+        </div>
+
+        <div class="products-box">
+          <div class="box-title">🔬 산출 입자</div>
+          <div id="productsList" style="color:var(--text-dim);font-size:0.82rem;">붕괴를 실행하면 산출 입자가 표시됩니다.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ 자유 실험실 ════════ -->
+  <div id="lab-screen" class="screen">
+    <div class="screen-title">🧪 자유 실험실</div>
+    <p class="screen-desc">직접 입자를 골라 충돌시키거나, 퀴즈로 지식을 테스트해보세요!</p>
+
+    <div class="lab-layout">
+      <!-- 입자 충돌기 -->
+      <div class="lab-box">
+        <div class="lab-box-title">💥 입자 충돌기</div>
+        <div class="select-row">
+          <select class="particle-select" id="p1Select"></select>
+          <span style="font-family:var(--font-mono);color:var(--text-dim);">+</span>
+          <select class="particle-select" id="p2Select"></select>
+          <button class="collide-btn" onclick="collideParticles()">충돌!</button>
+        </div>
+        <div class="collider-area">
+          <canvas id="colliderCanvas"></canvas>
+        </div>
+        <div class="collide-result" id="collideResult">
+          입자를 선택하고 충돌 버튼을 눌러보세요 🔬
+        </div>
+      </div>
+
+      <!-- 퀴즈 -->
+      <div class="lab-box">
+        <div class="lab-box-title">🧠 입자물리학 퀴즈</div>
+        <div id="quizArea"></div>
+        <button class="btn-secondary" style="margin-top:12px;width:100%;font-size:0.8rem;" onclick="nextQuiz()">다음 문제 →</button>
+      </div>
+
+      <!-- 에너지 척도 -->
+      <div class="lab-box energy-scale">
+        <div class="lab-box-title">📏 입자 질량 에너지 척도 (MeV/c²)</div>
+        <div class="scale-bar" id="scaleBar"></div>
+        <div class="scale-labels">
+          <span>전자 (0.511)</span>
+          <span>뮤온 (106)</span>
+          <span>W/Z 보손 (~80,000)</span>
+          <span>힉스 (125,000)</span>
+          <span>top 쿼크 (173,100)</span>
+        </div>
+        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;" id="massChips"></div>
+      </div>
+
+      <!-- 입자 비교 -->
+      <div class="lab-box">
+        <div class="lab-box-title">🔭 크기 비교</div>
+        <div id="sizeCompare" style="font-size:0.85rem;line-height:1.9;color:var(--text-dim);">
+          <div>🌍 지구 직경: <span style="color:var(--accent);font-family:var(--font-mono);">1.27 × 10⁷ m</span></div>
+          <div>🧬 DNA 폭: <span style="color:var(--accent);font-family:var(--font-mono);">2 × 10⁻⁹ m</span></div>
+          <div>⚛️ 원자 직경: <span style="color:var(--accent);font-family:var(--font-mono);">1 × 10⁻¹⁰ m</span></div>
+          <div>🔵 양성자 크기: <span style="color:var(--accent);font-family:var(--font-mono);">8.8 × 10⁻¹⁶ m</span></div>
+          <div>🟡 쿼크 상한: <span style="color:#f87171;font-family:var(--font-mono);">< 1 × 10⁻¹⁸ m</span></div>
+          <div style="margin-top:8px;padding:8px;background:var(--bg2);border-radius:6px;font-size:0.78rem;">
+            💡 쿼크는 너무 작아 현재 기술로도 크기를 정확히 측정할 수 없습니다.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+//  데이터
+// ══════════════════════════════════════
+const PARTICLES = {
+  // 쿼크
+  up:     { name:'up 쿼크',    symbol:'u',   cat:'quark',   charge:+2/3, spin:0.5, mass:2.3,    color:'#FF6B6B', desc:'가장 가벼운 쿼크. 양성자(uud), 중성자(udd)를 구성하는 핵심 입자입니다.' },
+  down:   { name:'down 쿼크',  symbol:'d',   cat:'quark',   charge:-1/3, spin:0.5, mass:4.8,    color:'#FF8E53', desc:'두 번째로 가벼운 쿼크. 핵 내부 베타 붕괴의 핵심 역할을 합니다.' },
+  charm:  { name:'charm 쿼크', symbol:'c',   cat:'quark',   charge:+2/3, spin:0.5, mass:1280,   color:'#FFE66D', desc:'1974년 발견된 쿼크. J/ψ 입자를 구성합니다.' },
+  strange:{ name:'strange 쿼크',symbol:'s',  cat:'quark',   charge:-1/3, spin:0.5, mass:95,     color:'#A8E6CF', desc:'기묘한 붕괴 특성 때문에 strange라는 이름을 얻었습니다.' },
+  top:    { name:'top 쿼크',   symbol:'t',   cat:'quark',   charge:+2/3, spin:0.5, mass:173100, color:'#FF8B94', desc:'가장 무거운 쿼크. 1995년 테바트론에서 발견. 양성자보다 185배 무겁습니다.' },
+  bottom: { name:'bottom 쿼크',symbol:'b',   cat:'quark',   charge:-1/3, spin:0.5, mass:4180,   color:'#957DAD', desc:'B 메손을 구성. B 물리학 연구의 핵심 입자입니다.' },
+  // 경입자
+  electron:    { name:'전자',         symbol:'e⁻',  cat:'lepton', charge:-1,  spin:0.5, mass:0.511,  color:'#74B9FF', desc:'원자 껍질을 구성. 전기를 운반. 1897년 J.J. 톰슨이 발견한 최초의 아원자 입자입니다.' },
+  muon:        { name:'뮤온',         symbol:'μ⁻',  cat:'lepton', charge:-1,  spin:0.5, mass:105.66, color:'#0984E3', desc:'전자의 무거운 버전(207배). 수명 2.2μs 후 전자와 중성미자로 붕괴합니다.' },
+  tau:         { name:'타우',         symbol:'τ⁻',  cat:'lepton', charge:-1,  spin:0.5, mass:1776.9, color:'#6C5CE7', desc:'가장 무거운 경입자. 수명 3×10⁻¹³초로 매우 짧습니다.' },
+  eNu:         { name:'전자 중성미자', symbol:'νe',  cat:'lepton', charge:0,   spin:0.5, mass:2.2e-6, color:'#81ECEC', desc:'전하도, 색전하도 없어 거의 모든 것을 통과합니다. 매 초 수조 개가 당신을 통과합니다.' },
+  muNu:        { name:'뮤온 중성미자', symbol:'νμ',  cat:'lepton', charge:0,   spin:0.5, mass:0.00017,color:'#55EFC4', desc:'뮤온 붕괴에서 생성되는 중성미자입니다.' },
+  tauNu:       { name:'타우 중성미자', symbol:'ντ',  cat:'lepton', charge:0,   spin:0.5, mass:0.0155, color:'#00CEC9', desc:'2000년 DONUT 실험에서 최초 검출되었습니다.' },
+  // 보손
+  photon:  { name:'광자',     symbol:'γ',   cat:'boson', charge:0,  spin:1, mass:0,      color:'#FFEAA7', desc:'빛의 입자. 전자기력의 매개입자. 진공에서 광속(c)으로 이동합니다.' },
+  wPlus:   { name:'W⁺ 보손',  symbol:'W⁺',  cat:'boson', charge:+1, spin:1, mass:80379,  color:'#FD79A8', desc:'약한 핵력의 매개입자. 베타+ 붕괴를 일으킵니다. 1983년 CERN에서 발견.' },
+  wMinus:  { name:'W⁻ 보손',  symbol:'W⁻',  cat:'boson', charge:-1, spin:1, mass:80379,  color:'#E84393', desc:'베타- 붕괴를 일으킵니다. 뮤온 붕괴의 핵심 매개입자입니다.' },
+  zBoson:  { name:'Z⁰ 보손',  symbol:'Z⁰',  cat:'boson', charge:0,  spin:1, mass:91187,  color:'#FDCB6E', desc:'중성 약력의 매개입자. 전자쌍으로 붕괴하는 "황금 채널"이 유명합니다.' },
+  gluon:   { name:'글루온',   symbol:'g',   cat:'boson', charge:0,  spin:1, mass:0,      color:'#55EFC4', desc:'강한 핵력의 매개입자. 8가지 색상이 있으며 쿼크를 하드론 안에 가둡니다.' },
+  higgs:   { name:'힉스 보손',symbol:'H',   cat:'boson', charge:0,  spin:0, mass:125100, color:'#FAB1A0', desc:'2012년 CERN LHC에서 발견. 다른 입자에 질량을 부여하는 "신의 입자".' },
+};
+
+const DECAY_MODES = [
+  {
+    id:'muon', name:'뮤온 붕괴', icon:'μ',
+    eq:'μ⁻ → e⁻ + ν̄e + νμ',
+    br:'분기비: 100%', lifetime:'수명: 2.2 × 10⁻⁶ s',
+    parent:'muon',
+    parentColor:'#0984E3',
+    mediator:'W⁻ 보손 (가상)',
+    products:['electron','eNu','muNu'],
+    productLabels:['전자 e⁻','전자 반중성미자 ν̄e','뮤온 중성미자 νμ'],
+    conservation:{ charge:[-1,-1], lepton:[1,1], energy:true },
+    desc:'뮤온이 W⁻ 보손을 매개로 전자와 두 중성미자로 붕괴합니다. 자연계에서 가장 잘 연구된 약력 붕괴 중 하나입니다.',
+    feynman:{ type:'weak', mediator:'W⁻' },
+  },
+  {
+    id:'beta', name:'베타 붕괴 (쿼크)', icon:'d',
+    eq:'d → u + e⁻ + ν̄e (W⁻ 매개)',
+    br:'분기비: ~100%', lifetime:'중성자 수명: 879초',
+    parent:'down',
+    parentColor:'#FF8E53',
+    mediator:'W⁻ 보손',
+    products:['up','electron','eNu'],
+    productLabels:['up 쿼크 u','전자 e⁻','전자 반중성미자 ν̄e'],
+    conservation:{ charge:[-1/3, 2/3-1], lepton:[0,1], energy:true },
+    desc:'down 쿼크가 W⁻ 보손을 방출하며 up 쿼크로 변환됩니다. 이것이 중성자가 양성자로 바뀌는 베타 붕괴의 근본 원인입니다.',
+    feynman:{ type:'weak', mediator:'W⁻' },
+  },
+  {
+    id:'pion', name:'파이온 붕괴', icon:'π',
+    eq:'π⁺ → μ⁺ + νμ',
+    br:'분기비: 99.99%', lifetime:'수명: 2.6 × 10⁻⁸ s',
+    parent:'charm',
+    parentColor:'#FFE66D',
+    mediator:'W⁺ 보손',
+    products:['muon','muNu'],
+    productLabels:['반뮤온 μ⁺','뮤온 중성미자 νμ'],
+    conservation:{ charge:[+1,0], lepton:[0,1], energy:true },
+    desc:'양전하 파이온(π⁺)이 반뮤온과 뮤온 중성미자로 붕괴합니다. 우주선(cosmic ray)이 대기와 충돌할 때 대량 생성됩니다.',
+    feynman:{ type:'weak', mediator:'W⁺' },
+  },
+  {
+    id:'zboson', name:'Z 보손 → 전자쌍', icon:'Z',
+    eq:'Z⁰ → e⁺ + e⁻',
+    br:'분기비: 3.36%', lifetime:'수명: 3 × 10⁻²⁵ s',
+    parent:'zBoson',
+    parentColor:'#FDCB6E',
+    mediator:'직접 붕괴',
+    products:['electron','electron'],
+    productLabels:['전자 e⁻','양전자 e⁺'],
+    conservation:{ charge:[0,0], lepton:[0,0], energy:true },
+    desc:'Z 보손이 전자-양전자 쌍으로 붕괴합니다. LEP(CERN 전자-양전자 충돌기) 실험에서 Z 보손 특성 연구의 핵심 채널이었습니다.',
+    feynman:{ type:'neutral', mediator:'Z⁰' },
+  },
+  {
+    id:'higgs', name:'힉스 → WW', icon:'H',
+    eq:'H → W⁺ + W⁻',
+    br:'분기비: 21.4%', lifetime:'수명: 1.6 × 10⁻²² s',
+    parent:'higgs',
+    parentColor:'#FAB1A0',
+    mediator:'직접 붕괴',
+    products:['wPlus','wMinus'],
+    productLabels:['W⁺ 보손','W⁻ 보손'],
+    conservation:{ charge:[0,0], lepton:[0,0], energy:true },
+    desc:'힉스 보손의 가장 큰 분기비를 가진 붕괴 채널. 2012년 CERN LHC에서 힉스를 발견한 핵심 붕괴 경로 중 하나입니다.',
+    feynman:{ type:'higgs', mediator:'H' },
+  },
+];
+
+const QUIZZES = [
+  { q:'쿼크를 묶어 양성자와 중성자를 만드는 매개입자는?', opts:['광자(γ)','글루온(g)','W 보손','Z 보손'], ans:1, exp:'글루온은 강한 핵력의 매개입자입니다. 쿼크 3개를 묶어 양성자(uud), 중성자(udd)를 만듭니다.' },
+  { q:'전자의 전하량은 얼마인가요?', opts:['+1','-1/3','-1','+2/3'], ans:2, exp:'전자는 -1e의 전하를 가집니다. 이것이 음전하의 기본 단위입니다.' },
+  { q:'2012년 CERN에서 발견된 입자는?', opts:['글루온','타우 중성미자','힉스 보손','top 쿼크'], ans:2, exp:'힉스 보손은 2012년 CERN LHC에서 발견되었습니다. 다른 입자에 질량을 부여하는 역할을 합니다.' },
+  { q:'뮤온 붕괴에서 매개 역할을 하는 보손은?', opts:['Z⁰ 보손','광자(γ)','W⁻ 보손','글루온'], ans:2, exp:'W⁻ 보손이 뮤온 붕괴를 매개합니다: μ⁻ → e⁻ + ν̄e + νμ' },
+  { q:'스핀이 0인 표준 모형 입자는?', opts:['광자','글루온','힉스 보손','전자'], ans:2, exp:'힉스 보손만 스핀 0(스칼라 입자)입니다. 광자와 글루온은 스핀 1, 전자는 스핀 1/2입니다.' },
+  { q:'가장 무거운 쿼크는?', opts:['bottom 쿼크','charm 쿼크','strange 쿼크','top 쿼크'], ans:3, exp:'top 쿼크는 173,100 MeV/c²으로 가장 무겁습니다. 양성자보다 약 185배 무겁습니다.' },
+  { q:'전하가 없는 경입자는?', opts:['전자','뮤온','타우','중성미자'], ans:3, exp:'중성미자(νe, νμ, ντ)는 전하가 0입니다. 이 때문에 거의 모든 물질을 통과합니다.' },
+  { q:'베타 붕괴에서 down 쿼크가 변하는 입자는?', opts:['strange 쿼크','bottom 쿼크','up 쿼크','charm 쿼크'], ans:2, exp:'베타 붕괴: d → u + e⁻ + ν̄e. down 쿼크가 W⁻ 보손을 방출하며 up 쿼크로 변환됩니다.' },
+];
+
+// ══════════════════════════════════════
+//  별 배경
+// ══════════════════════════════════════
+const starCanvas = document.getElementById('starfield');
+const sCtx = starCanvas.getContext('2d');
+let stars = [];
+
+function initStars() {
+  starCanvas.width = window.innerWidth;
+  starCanvas.height = window.innerHeight;
+  stars = [];
+  for (let i = 0; i < 200; i++) {
+    stars.push({
+      x: Math.random() * starCanvas.width,
+      y: Math.random() * starCanvas.height,
+      r: Math.random() * 1.2 + 0.2,
+      a: Math.random(),
+      da: (Math.random() - 0.5) * 0.008,
+    });
+  }
+}
+
+function drawStars() {
+  sCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
+  stars.forEach(s => {
+    s.a += s.da;
+    if (s.a < 0 || s.a > 1) s.da *= -1;
+    sCtx.beginPath();
+    sCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    sCtx.fillStyle = `rgba(200,220,255,${s.a})`;
+    sCtx.fill();
+  });
+  requestAnimationFrame(drawStars);
+}
+
+window.addEventListener('resize', initStars);
+initStars();
+drawStars();
+
+// ══════════════════════════════════════
+//  떠다니는 입자 (홈)
+// ══════════════════════════════════════
+function initFloatParticles() {
+  const container = document.getElementById('floatParticles');
+  const symbols = ['u','d','e⁻','γ','g','H','W⁺','μ⁻','νe'];
+  const colors = ['#FF6B6B','#4da6ff','#74B9FF','#FFEAA7','#55EFC4','#FAB1A0','#FD79A8','#0984E3','#81ECEC'];
+  container.innerHTML = '';
+  for (let i = 0; i < 12; i++) {
+    const el = document.createElement('div');
+    const idx = Math.floor(Math.random() * symbols.length);
+    el.className = 'fp';
+    const size = 20 + Math.random() * 20;
+    el.style.cssText = `
+      left:${Math.random()*100}%;
+      width:${size}px; height:${size}px;
+      background:${colors[idx]}22;
+      border:1px solid ${colors[idx]}44;
+      animation-duration:${8+Math.random()*12}s;
+      animation-delay:${Math.random()*8}s;
+      display:flex;align-items:center;justify-content:center;
+      font-family:var(--font-mono);font-size:${size*0.4}px;
+      color:${colors[idx]};
+    `;
+    el.textContent = symbols[idx];
+    container.appendChild(el);
+  }
+}
+initFloatParticles();
+
+// ══════════════════════════════════════
+//  화면 전환
+// ══════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(name+'-screen').classList.add('active');
+  document.querySelector(`nav button[onclick="showScreen('${name}')"]`).classList.add('active');
+  if (name === 'sim') initSim();
+  if (name === 'lab') initLab();
+}
+
+// ══════════════════════════════════════
+//  표준 모형 탐색기
+// ══════════════════════════════════════
+function buildModelGrid() {
+  const quarks  = ['up','down','charm','strange','top','bottom'];
+  const leptons = ['electron','muon','tau','eNu','muNu','tauNu'];
+  const bosons  = ['photon','wPlus','wMinus','zBoson','gluon','higgs'];
+
+  function makeCard(id) {
+    const p = PARTICLES[id];
+    const card = document.createElement('div');
+    card.className = 'particle-card';
+    card.style.setProperty('--p-color', p.color);
+    card.innerHTML = `
+      <span class="p-symbol">${p.symbol}</span>
+      <span class="p-name">${p.name}</span>
+      <div class="p-charge">${p.charge >= 0 ? '+' : ''}${formatCharge(p.charge)} e</div>
+      <div class="p-mass">${formatMass(p.mass)}</div>
+    `;
+    card.onclick = () => showParticleDetail(id);
+    return card;
+  }
+
+  ['quark','lepton','boson'].forEach((cat, i) => {
+    const grid = document.getElementById(['quark','lepton','boson'][i]+'-grid');
+    const list = [quarks,leptons,bosons][i];
+    grid.innerHTML = '';
+    list.forEach(id => grid.appendChild(makeCard(id)));
+  });
+}
+
+function formatCharge(c) {
+  if (Math.abs(c - 2/3) < 0.01) return '2/3';
+  if (Math.abs(c + 1/3) < 0.01) return '-1/3';
+  return c.toString();
+}
+
+function formatMass(m) {
+  if (m === 0) return '0 (질량 없음)';
+  if (m < 0.001) return m.toExponential(1) + ' MeV/c²';
+  if (m >= 1000) return (m/1000).toFixed(1) + ' GeV/c²';
+  return m.toFixed(3) + ' MeV/c²';
+}
+
+function showParticleDetail(id) {
+  const p = PARTICLES[id];
+  const det = document.getElementById('particleDetail');
+  document.querySelectorAll('.particle-card').forEach(c => c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+
+  const catLabel = { quark:'쿼크 (Quark)', lepton:'경입자 (Lepton)', boson:'게이지 보손 (Boson)' };
+  const spinLabel = p.spin === 0 ? '0 (스칼라)' : p.spin === 0.5 ? '1/2 (페르미온)' : '1 (벡터 보손)';
+
+  det.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-symbol" style="--p-color:${p.color}">${p.symbol}</div>
+      <div>
+        <div class="detail-title">${p.name}</div>
+        <div class="detail-category">${catLabel[p.cat] || p.cat}</div>
+      </div>
+    </div>
+    <div class="props-grid">
+      <div class="prop-box">
+        <span class="prop-val">${p.charge >= 0 ? '+' : ''}${formatCharge(p.charge)} e</span>
+        <div class="prop-label">⚡ 전하량</div>
+      </div>
+      <div class="prop-box">
+        <span class="prop-val">${spinLabel}</span>
+        <div class="prop-label">🌀 스핀</div>
+      </div>
+      <div class="prop-box">
+        <span class="prop-val" style="font-size:0.85rem">${formatMass(p.mass)}</span>
+        <div class="prop-label">⚖️ 질량</div>
+      </div>
+    </div>
+    <p class="detail-desc">${p.desc || '표준 모형의 기본 입자입니다.'}</p>
+  `;
+  det.classList.add('visible');
+  det.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+buildModelGrid();
+
+// ══════════════════════════════════════
+//  시뮬레이션
+// ══════════════════════════════════════
+let selectedDecay = DECAY_MODES[0];
+let simState = 'idle'; // idle | running | done
+let simTimer = null;
+let animFrame = null;
+let simProgress = 0;
+let simParticles = [];
+let simStep = 0; // 0=before 1=mediating 2=after
+
+function initSim() {
+  buildDecayList();
+  selectDecay(DECAY_MODES[0]);
+  initSimCanvas();
+}
+
+function buildDecayList() {
+  const list = document.getElementById('decayList');
+  list.innerHTML = '';
+  DECAY_MODES.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'decay-option' + (d.id === selectedDecay.id ? ' selected' : '');
+    el.id = 'decay-opt-' + d.id;
+    el.innerHTML = `
+      <div class="decay-icon" style="color:${d.parentColor};border:1px solid ${d.parentColor}44">${d.icon}</div>
+      <div class="decay-info">
+        <div class="decay-name">${d.name}</div>
+        <div class="decay-eq">${d.eq}</div>
+        <div class="decay-br">${d.br} &nbsp;|&nbsp; ${d.lifetime}</div>
+      </div>
+    `;
+    el.onclick = () => selectDecay(d);
+    list.appendChild(el);
+  });
+}
+
+function selectDecay(d) {
+  selectedDecay = d;
+  document.querySelectorAll('.decay-option').forEach(el => el.classList.remove('selected'));
+  const opt = document.getElementById('decay-opt-' + d.id);
+  if (opt) opt.classList.add('selected');
+  resetSim();
+  drawFeynman(d);
+  document.getElementById('productsList').innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">붕괴를 실행하면 산출 입자가 표시됩니다.</span>';
+}
+
+// ── 캔버스 초기화 ──
+let simCanvas, simCtx, simW, simH;
+
+function initSimCanvas() {
+  simCanvas = document.getElementById('simCanvas');
+  simCtx = simCanvas.getContext('2d');
+  simW = simCanvas.offsetWidth;
+  simH = simCanvas.offsetHeight;
+  simCanvas.width = simW;
+  simCanvas.height = simH;
+  drawIdleState();
+}
+
+function drawIdleState() {
+  if (!simCtx) return;
+  simCtx.clearRect(0, 0, simW, simH);
+
+  // 배경 그라데이션
+  const grad = simCtx.createRadialGradient(simW/2,simH/2,0, simW/2,simH/2,simH*0.6);
+  grad.addColorStop(0, 'rgba(13,18,37,0.9)');
+  grad.addColorStop(1, 'rgba(3,4,15,0.95)');
+  simCtx.fillStyle = grad;
+  simCtx.fillRect(0, 0, simW, simH);
+
+  // 그리드
+  simCtx.strokeStyle = 'rgba(77,166,255,0.05)';
+  simCtx.lineWidth = 1;
+  for (let x = 0; x < simW; x += 40) { simCtx.beginPath(); simCtx.moveTo(x,0); simCtx.lineTo(x,simH); simCtx.stroke(); }
+  for (let y = 0; y < simH; y += 40) { simCtx.beginPath(); simCtx.moveTo(0,y); simCtx.lineTo(simW,y); simCtx.stroke(); }
+
+  if (!selectedDecay) return;
+  const p = PARTICLES[selectedDecay.parent];
+
+  // 중심 입자
+  drawParticleCircle(simCtx, simW/2, simH/2, 36, p.color, p.symbol, true);
+
+  // 설명 텍스트
+  simCtx.fillStyle = 'rgba(100,116,139,0.8)';
+  simCtx.font = '12px Space Mono, monospace';
+  simCtx.textAlign = 'center';
+  simCtx.fillText('▶ 재생 버튼을 눌러 붕괴를 시작하세요', simW/2, simH - 20);
+}
+
+function drawParticleCircle(ctx, x, y, r, color, label, glow) {
+  if (glow) {
+    const g = ctx.createRadialGradient(x,y,0, x,y,r*2);
+    g.addColorStop(0, color+'44');
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r*2, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI*2);
+  ctx.fillStyle = color+'33';
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.font = `bold ${Math.max(10,r*0.6)}px Space Mono, monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x, y);
+  ctx.textBaseline = 'alphabetic';
+}
+
+// ── 시뮬레이션 실행 ──
+let animT = 0;
+let phase = 'before'; // before → mediating → after → done
+
+function startSimulation() {
+  if (simState === 'running') return;
+  simState = 'running';
+  simStep = 0;
+  phase = 'before';
+  animT = 0;
+  simProgress = 0;
+  document.getElementById('playBtn').textContent = '⏸ 재생 중';
+  document.getElementById('stepBadge').textContent = '붕괴 전';
+  resetConservation();
+
+  const speed = parseFloat(document.getElementById('speedSlider').value);
+  const totalDuration = 4000 / speed;
+
+  function animate(ts) {
+    animT += 16 * speed;
+    simProgress = Math.min(100, (animT / totalDuration) * 100);
+    document.getElementById('progressFill').style.width = simProgress + '%';
+
+    const prog = animT / totalDuration;
+
+    if (prog < 0.25) {
+      phase = 'before';
+      document.getElementById('stepBadge').textContent = '붕괴 전';
+    } else if (prog < 0.55) {
+      phase = 'mediating';
+      document.getElementById('stepBadge').textContent = '매개 보손 방출';
+    } else if (prog < 1.0) {
+      phase = 'after';
+      document.getElementById('stepBadge').textContent = '붕괴 완료';
+      showConservation();
+      showProducts();
+    }
+
+    drawSimFrame(prog);
+
+    if (prog < 1.0) {
+      animFrame = requestAnimationFrame(animate);
+    } else {
+      simState = 'done';
+      document.getElementById('playBtn').textContent = '▶ 재생';
+      document.getElementById('stepBadge').textContent = '완료';
+    }
+  }
+
+  animFrame = requestAnimationFrame(animate);
+}
+
+let productsShown = false;
+function showProducts() {
+  if (productsShown) return;
+  productsShown = true;
+  const el = document.getElementById('productsList');
+  el.innerHTML = '';
+  selectedDecay.products.forEach((pid, i) => {
+    const p = PARTICLES[pid];
+    const item = document.createElement('div');
+    item.className = 'product-item';
+    item.style.animationDelay = (i * 0.15) + 's';
+    item.innerHTML = `
+      <div class="product-dot" style="background:${p.color}22;border:1.5px solid ${p.color};color:${p.color}">${p.symbol}</div>
+      <div class="product-info">
+        <div class="product-name">${selectedDecay.productLabels[i]}</div>
+        <div class="product-props">전하 ${p.charge>=0?'+':''}${formatCharge(p.charge)}e · 스핀 ${p.spin} · ${formatMass(p.mass)}</div>
+      </div>
+    `;
+    el.appendChild(item);
+  });
+}
+
+function drawSimFrame(prog) {
+  simCtx.clearRect(0, 0, simW, simH);
+  const grad = simCtx.createRadialGradient(simW/2,simH/2,0, simW/2,simH/2,simH*0.6);
+  grad.addColorStop(0, 'rgba(13,18,37,0.9)');
+  grad.addColorStop(1, 'rgba(3,4,15,0.95)');
+  simCtx.fillStyle = grad;
+  simCtx.fillRect(0, 0, simW, simH);
+
+  // 그리드
+  simCtx.strokeStyle = 'rgba(77,166,255,0.04)';
+  simCtx.lineWidth = 1;
+  for (let x=0;x<simW;x+=40){simCtx.beginPath();simCtx.moveTo(x,0);simCtx.lineTo(x,simH);simCtx.stroke();}
+  for (let y=0;y<simH;y+=40){simCtx.beginPath();simCtx.moveTo(0,y);simCtx.lineTo(simW,y);simCtx.stroke();}
+
+  const cx = simW/2, cy = simH/2;
+  const p = PARTICLES[selectedDecay.parent];
+
+  if (phase === 'before') {
+    // 모입자 + 진동 효과
+    const pulse = 1 + Math.sin(animT * 0.01) * 0.06;
+    drawParticleCircle(simCtx, cx, cy, 36 * pulse, p.color, p.symbol, true);
+  }
+
+  if (phase === 'mediating') {
+    const t = (prog - 0.25) / 0.3;
+    const mediatorColor = selectedDecay.mediator.includes('W') ? '#FD79A8' : '#FDCB6E';
+    // 모입자 (줄어듦)
+    drawParticleCircle(simCtx, cx - 30*t, cy, 36*(1-t*0.3), p.color, p.symbol, false);
+    // 매개 보손 물결선
+    drawWigglyLine(simCtx, cx - 30*t, cy, cx + 60*t, cy - 20*t, mediatorColor, 0.8);
+    // 매개 보손 라벨
+    simCtx.fillStyle = mediatorColor;
+    simCtx.font = '11px Space Mono';
+    simCtx.textAlign = 'center';
+    simCtx.fillText(selectedDecay.mediator.split(' ')[0], cx + 30*t, cy - 30*t);
+  }
+
+  if (phase === 'after') {
+    const t = Math.min(1, (prog - 0.55) / 0.35);
+    const count = selectedDecay.products.length;
+    selectedDecay.products.forEach((pid, i) => {
+      const prod = PARTICLES[pid];
+      const angle = (i / count) * Math.PI * 2 - Math.PI/2;
+      const dist = 100 * t;
+      const px = cx + Math.cos(angle) * dist;
+      const py = cy + Math.sin(angle) * dist;
+      // 트레일
+      simCtx.beginPath();
+      simCtx.moveTo(cx, cy);
+      simCtx.lineTo(px, py);
+      simCtx.strokeStyle = prod.color + '44';
+      simCtx.lineWidth = 1.5;
+      simCtx.stroke();
+      drawParticleCircle(simCtx, px, py, 22, prod.color, prod.symbol, true);
+    });
+    // 중심 폭발 효과
+    const blastR = 80 * t;
+    simCtx.beginPath();
+    simCtx.arc(cx, cy, blastR, 0, Math.PI*2);
+    simCtx.strokeStyle = p.color + Math.floor((1-t)*255).toString(16).padStart(2,'0');
+    simCtx.lineWidth = 2 * (1-t);
+    simCtx.stroke();
+  }
+}
+
+function drawWigglyLine(ctx, x1, y1, x2, y2, color, opacity) {
+  const n = 12;
+  const dx = (x2-x1)/n, dy = (y2-y1)/n;
+  const perp = { x: -(y2-y1)/Math.hypot(x2-x1,y2-y1)*8, y: (x2-x1)/Math.hypot(x2-x1,y2-y1)*8 };
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  for (let i = 0; i <= n; i++) {
+    const side = i%2===0 ? 1 : -1;
+    ctx.lineTo(x1+dx*i + perp.x*side, y1+dy*i + perp.y*side);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = opacity;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function resetSim() {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  simState = 'idle';
+  phase = 'before';
+  animT = 0;
+  productsShown = false;
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('playBtn').textContent = '▶ 재생';
+  document.getElementById('stepBadge').textContent = '대기 중';
+  resetConservation();
+  drawIdleState();
+  document.getElementById('productsList').innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">붕괴를 실행하면 산출 입자가 표시됩니다.</span>';
+}
+
+let stepPhaseIdx = 0;
+const stepPhases = ['before','mediating','after'];
+function stepSim() {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  simState = 'stepped';
+  productsShown = false;
+  stepPhaseIdx = (stepPhaseIdx + 1) % stepPhases.length;
+  phase = stepPhases[stepPhaseIdx];
+  const progMap = { before:0.1, mediating:0.4, after:0.8 };
+  drawSimFrame(progMap[phase]);
+  document.getElementById('stepBadge').textContent = { before:'붕괴 전', mediating:'매개 보손 방출', after:'붕괴 완료' }[phase];
+  if (phase === 'after') { showConservation(); showProducts(); }
+  else resetConservation();
+}
+
+function resetConservation() {
+  ['charge','lepton','energy'].forEach(k => {
+    const el = document.getElementById('law-'+k);
+    el.className = 'law-status wait';
+    el.textContent = '대기';
+  });
+}
+
+function showConservation() {
+  const laws = ['charge','lepton','energy'];
+  laws.forEach((k, i) => {
+    setTimeout(() => {
+      const el = document.getElementById('law-'+k);
+      el.className = 'law-status ok';
+      el.textContent = '✓ 보존됨';
+    }, i * 300);
+  });
+}
+
+// ── 파인먼 다이어그램 ──
+function drawFeynman(d) {
+  const svg = document.getElementById('feynmanSvg');
+  svg.innerHTML = '';
+  const W = 300, H = 160;
+  const cx = W/2, cy = H/2;
+  const pColor = d.parentColor;
+  const mColor = d.mediator.includes('W') ? '#FD79A8' : d.mediator.includes('Z') ? '#FDCB6E' : '#FAB1A0';
+
+  function line(x1,y1,x2,y2,color,w=2,dash='') {
+    const el = document.createElementNS('http://www.w3.org/2000/svg','line');
+    el.setAttribute('x1',x1);el.setAttribute('y1',y1);el.setAttribute('x2',x2);el.setAttribute('y2',y2);
+    el.setAttribute('stroke',color);el.setAttribute('stroke-width',w);
+    if(dash) el.setAttribute('stroke-dasharray',dash);
+    svg.appendChild(el);
+  }
+  function text(x,y,t,color,size=11,anchor='middle') {
+    const el = document.createElementNS('http://www.w3.org/2000/svg','text');
+    el.setAttribute('x',x);el.setAttribute('y',y);el.setAttribute('fill',color);
+    el.setAttribute('font-size',size);el.setAttribute('text-anchor',anchor);
+    el.setAttribute('font-family','Space Mono, monospace');el.textContent=t;
+    svg.appendChild(el);
+  }
+  function circle(x,y,r,color) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    el.setAttribute('cx',x);el.setAttribute('cy',y);el.setAttribute('r',r);
+    el.setAttribute('fill',color);svg.appendChild(el);
+  }
+  function wiggly(x1,y1,x2,y2,color) {
+    const n=10;
+    const dx=(x2-x1)/n, dy=(y2-y1)/n;
+    const len=Math.hypot(x2-x1,y2-y1);
+    const px=-(y2-y1)/len*7, py=(x2-x1)/len*7;
+    let path=`M${x1} ${y1}`;
+    for(let i=0;i<=n;i++){
+      const s=i%2===0?1:-1;
+      path+=` L${x1+dx*i+px*s} ${y1+dy*i+py*s}`;
+    }
+    const el=document.createElementNS('http://www.w3.org/2000/svg','path');
+    el.setAttribute('d',path);el.setAttribute('stroke',color);
+    el.setAttribute('stroke-width',2);el.setAttribute('fill','none');
+    svg.appendChild(el);
+  }
+
+  // 입사 입자선
+  line(30, cy, cx-10, cy, pColor, 2.5);
+  text(8, cy-8, d.icon, pColor, 13, 'start');
+
+  // 꼭짓점
+  circle(cx-10, cy, 5, 'white');
+
+  const count = d.products.length;
+  if (count === 2 && d.mediator === '직접 붕괴') {
+    // 직접 분기
+    const angles = [-35, 35];
+    d.products.forEach((pid, i) => {
+      const a = angles[i] * Math.PI/180;
+      const ex = cx + Math.cos(a)*110, ey = cy + Math.sin(a)*80;
+      line(cx-10, cy, ex, ey, PARTICLES[pid].color, 2);
+      text(ex+8, ey, PARTICLES[pid].symbol, PARTICLES[pid].color, 10, 'start');
+    });
+  } else {
+    // 매개 보손 경유
+    const vx = cx + 60, vy = cy;
+    wiggly(cx-10, cy, vx, vy, mColor);
+    text(cx+25, cy-14, d.mediator.split(' ')[0], mColor, 10);
+    circle(vx, vy, 5, 'white');
+
+    const prods = d.products;
+    const offsets = prods.length === 2 ? [[-30,55],[30,55]] :
+                    [[-40,55],[0,55],[40,55]];
+    prods.forEach((pid, i) => {
+      const [ox,oy] = offsets[i] || [i*30-30, 55];
+      const ex = vx+ox, ey = vy+oy;
+      line(vx, vy, ex, ey, PARTICLES[pid].color, 2);
+      text(ex, ey+14, PARTICLES[pid].symbol, PARTICLES[pid].color, 10);
+    });
+  }
+}
+
+// 속도 슬라이더
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedVal').textContent = this.value + '×';
+});
+
+// ══════════════════════════════════════
+//  자유 실험실
+// ══════════════════════════════════════
+let quizIdx = 0;
+let quizAnswered = false;
+
+function initLab() {
+  buildParticleSelects();
+  loadQuiz(0);
+  buildMassChips();
+  initColliderCanvas();
+}
+
+function buildParticleSelects() {
+  const ids = Object.keys(PARTICLES);
+  [document.getElementById('p1Select'), document.getElementById('p2Select')].forEach((sel, si) => {
+    sel.innerHTML = '';
+    ids.forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = PARTICLES[id].symbol + ' ' + PARTICLES[id].name;
+      sel.appendChild(opt);
+    });
+    sel.selectedIndex = si === 0 ? 0 : 6; // up, electron
+  });
+}
+
+// 충돌 결과 시나리오 — 과학적 상세 데이터
+const collisionResults = {
+
+  // ── 전자/양전자 관련 ───────────────────────────────
+  'electron+electron': {
+    possible: true,
+    title: '전자-전자 산란 (뫼러 산란)',
+    reaction: 'e⁻ + e⁻ → e⁻ + e⁻',
+    force: '전자기력',
+    mediator: '광자 (γ, 가상입자)',
+    products: [
+      { symbol:'e⁻', name:'전자', color:'#74B9FF' },
+      { symbol:'e⁻', name:'전자', color:'#74B9FF' },
+    ],
+    energy: '보존 (운동에너지 교환)',
+    desc: '같은 전하(−1)끼리 반발. 광자를 주고받으며 방향이 바뀝니다. 전하 보존: −2 → −2 ✓. 실제 가속기에서 매우 자주 관측되는 기본 산란입니다.',
+    realworld: 'LEP(CERN), SLAC 등 전자 빔 실험에서 일상적으로 관측',
+  },
+  'electron+positron': {
+    possible: true,
+    title: '전자-양전자 쌍소멸',
+    reaction: 'e⁻ + e⁺ → γ + γ (또는 Z⁰ → ff̄)',
+    force: '전자기력 / 약한 핵력',
+    mediator: '광자 (γ) 또는 Z⁰ 보손',
+    products: [
+      { symbol:'γ', name:'광자 ×2', color:'#FFEAA7' },
+    ],
+    energy: '2 × 0.511 MeV = 1.022 MeV (최소) → 전부 빛으로 전환',
+    desc: '입자와 반입자의 완전한 소멸! e⁻(−1) + e⁺(+1) = 0 → 전하 보존 ✓. 질량 전체가 E=mc²에 따라 두 광자로 바뀝니다. 고에너지에서는 Z⁰ 보손이 생성되어 다른 입자쌍으로 붕괴합니다.',
+    realworld: 'PET(양전자 방출 단층촬영) 의료 장비의 원리. LEP에서 수백만 번 관측됨.',
+  },
+  'electron+photon': {
+    possible: true,
+    title: '컴프턴 산란',
+    reaction: 'e⁻ + γ → e⁻ + γ (파장 변화)',
+    force: '전자기력',
+    mediator: '가상 전자 (내부 전파자)',
+    products: [
+      { symbol:'e⁻', name:'전자 (운동에너지 증가)', color:'#74B9FF' },
+      { symbol:'γ', name:'광자 (파장 길어짐)', color:'#FFEAA7' },
+    ],
+    energy: '광자 에너지 일부가 전자에 전달됨',
+    desc: '광자가 전자에 부딪혀 파장이 길어집니다(에너지 감소). Δλ = (h/mec)(1−cosθ). 1923년 아서 컴프턴이 발견. 빛의 입자성을 증명한 역사적 실험입니다.',
+    realworld: 'X선 산란 분석, 천체물리학에서 우주 배경복사 연구에 핵심.',
+  },
+  'electron+muon': {
+    possible: true,
+    title: '전자-뮤온 산란',
+    reaction: 'e⁻ + μ⁻ → e⁻ + μ⁻',
+    force: '전자기력',
+    mediator: '광자 (γ)',
+    products: [
+      { symbol:'e⁻', name:'전자', color:'#74B9FF' },
+      { symbol:'μ⁻', name:'뮤온', color:'#0984E3' },
+    ],
+    energy: '운동량 교환, 총 에너지 보존',
+    desc: '다른 종류의 경입자끼리 광자를 교환하는 전자기 산란. 전하 보존: −2 → −2 ✓. 렙톤 수 보존: Le=1, Lμ=1 각각 보존 ✓.',
+    realworld: '고에너지 물리 실험에서 경입자 보편성(lepton universality) 검증에 사용.',
+  },
+  'electron+eNu': {
+    possible: true,
+    title: '전자-중성미자 산란',
+    reaction: 'e⁻ + νe → e⁻ + νe',
+    force: '약한 핵력',
+    mediator: 'Z⁰ 보손 (중성 전류)',
+    products: [
+      { symbol:'e⁻', name:'전자', color:'#74B9FF' },
+      { symbol:'νe', name:'전자 중성미자', color:'#81ECEC' },
+    ],
+    energy: '매우 약함 — 단면적 ~10⁻⁴⁵ cm²',
+    desc: '중성미자는 전하가 없어 전자기력에 반응하지 않습니다. 오직 Z⁰ 보손을 통한 약한 핵력만 작용. 이 때문에 중성미자는 지구 전체를 거의 통과합니다.',
+    realworld: 'Super-Kamiokande(일본), IceCube(남극) 중성미자 검출기에서 연구.',
+  },
+
+  // ── 쿼크 관련 ─────────────────────────────────────
+  'up+down': {
+    possible: true,
+    title: '쿼크 결합 → 파이온 형성',
+    reaction: 'u + d̄ → π⁺ (또는 u + d → 하드론)',
+    force: '강한 핵력 (색력)',
+    mediator: '글루온 (g)',
+    products: [
+      { symbol:'π⁺', name:'양전하 파이온 (ud̄)', color:'#FFE66D' },
+    ],
+    energy: '결합 에너지 ~ 수백 MeV (쿼크 질량보다 훨씬 큼!)',
+    desc: '쿼크는 절대 혼자 존재할 수 없습니다(색 가둠, color confinement). u(+2/3) + d(−1/3) → 전하 +1/3. 글루온을 교환하며 결합. 결합 에너지가 쿼크 자체 질량보다 수백 배 큽니다.',
+    realworld: '양성자(uud), 중성자(udd)가 이렇게 형성됨. 핵물리학의 근본 원리.',
+  },
+  'up+up': {
+    possible: false,
+    title: '동일 쿼크 자유 결합 — 불가능',
+    reaction: 'u + u → ??',
+    force: '강한 핵력',
+    mediator: '글루온',
+    products: [],
+    energy: '색 중성 상태 불가 — 색 가둠 위반',
+    desc: '⚠️ up 쿼크 두 개만으로는 색 중성(흰색) 상태를 만들 수 없습니다. 쿼크는 반드시 색 중성 묶음(바리온 3개 또는 메손 쌍)으로만 존재합니다. up+up만의 자유 결합은 자연계에서 허용되지 않습니다.',
+    realworld: '색 가둠(color confinement)은 QCD(양자색역학)의 핵심 원리.',
+  },
+  'up+bottom': {
+    possible: true,
+    title: '쿼크 결합 → B 메손',
+    reaction: 'u + b̄ → B⁺ 메손',
+    force: '강한 핵력',
+    mediator: '글루온 (g)',
+    products: [
+      { symbol:'B⁺', name:'B+ 메손 (ub̄)', color:'#957DAD' },
+    ],
+    energy: '질량 ~5,279 MeV/c²',
+    desc: 'up 쿼크와 bottom 반쿼크가 결합해 B⁺ 메손을 형성합니다. B 메손은 수명 ~1.6×10⁻¹²초 후 W⁺ 보손을 통해 더 가벼운 입자로 붕괴합니다.',
+    realworld: 'LHCb(CERN), Belle II(일본)에서 CP 대칭성 위반 연구의 핵심 대상.',
+  },
+  'top+bottom': {
+    possible: false,
+    title: 'top-bottom 자유 결합 — 사실상 불가능',
+    reaction: 't + b → ??',
+    force: '강한 핵력',
+    mediator: '글루온',
+    products: [
+      { symbol:'W⁺', name:'W 보손', color:'#FD79A8' },
+      { symbol:'b', name:'bottom 쿼크', color:'#957DAD' },
+    ],
+    energy: 'top 쿼크 수명 ~5×10⁻²⁵초 — 결합 전에 붕괴!',
+    desc: '⚠️ top 쿼크는 수명이 너무 짧아(~5×10⁻²⁵초) 다른 쿼크와 결합하기 전에 t → W⁺ + b로 붕괴합니다. 하드론을 형성할 시간 자체가 없습니다. 자연계에서 유일하게 "맨" 상태로 붕괴하는 쿼크입니다.',
+    realworld: '1995년 테바트론(미국 페르미랩)에서 top 쿼크 발견. 결합 전 붕괴 확인.',
+  },
+
+  // ── 보손 관련 ─────────────────────────────────────
+  'photon+photon': {
+    possible: true,
+    title: '광자-광자 산란 (빛과 빛의 충돌)',
+    reaction: 'γ + γ → e⁻ + e⁺ (쌍생성, 고에너지)',
+    force: '전자기력 (QED)',
+    mediator: '가상 전자 루프',
+    products: [
+      { symbol:'e⁻', name:'전자', color:'#74B9FF' },
+      { symbol:'e⁺', name:'양전자', color:'#FD79A8' },
+    ],
+    energy: '최소 2 × 0.511 MeV = 1.022 MeV 이상 필요',
+    desc: '고에너지 광자 두 개가 충돌하면 전자-양전자 쌍이 생성됩니다(쌍생성). 에너지가 물질로 변환되는 E=mc²의 역방향! 저에너지에서는 산란만 일어납니다(광자-광자 산란, 매우 드문 과정).',
+    realworld: '2021년 ATLAS(CERN)에서 광자-광자 산란 직접 관측 성공.',
+  },
+  'wPlus+wMinus': {
+    possible: true,
+    title: 'W 보손 쌍 산란',
+    reaction: 'W⁺ + W⁻ → Z⁰/γ → ff̄',
+    force: '약한 핵력 + 전자기력',
+    mediator: 'Z⁰ 보손 또는 광자 (γ)',
+    products: [
+      { symbol:'Z⁰', name:'Z 보손', color:'#FDCB6E' },
+      { symbol:'γ', name:'광자', color:'#FFEAA7' },
+    ],
+    energy: '~160 GeV 이상',
+    desc: 'W 보손끼리의 산란. 전하 보존: +1+(−1)=0 ✓. 표준 모형이 없다면 이 과정의 확률이 에너지 증가와 함께 무한대로 발산합니다. 힉스 보손이 이 발산을 막는 역할을 합니다!',
+    realworld: 'CERN LEP2에서 관측. 힉스 보손 존재 예측의 이론적 근거 중 하나.',
+  },
+  'gluon+gluon': {
+    possible: true,
+    title: '글루온-글루온 융합 → 힉스 생성',
+    reaction: 'g + g → H (힉스 보손) [톱 쿼크 루프 경유]',
+    force: '강한 핵력 + 힉스 결합',
+    mediator: '가상 top 쿼크 루프',
+    products: [
+      { symbol:'H', name:'힉스 보손', color:'#FAB1A0' },
+    ],
+    energy: '~125 GeV 이상',
+    desc: 'LHC에서 힉스 보손이 생성되는 가장 주요한 경로! 글루온 두 개가 top 쿼크 루프를 통해 힉스 보손을 생성합니다. 글루온은 힉스와 직접 결합하지 않지만 무거운 top 쿼크를 통해 간접 결합합니다.',
+    realworld: '2012년 CERN LHC에서 힉스 발견 시 이 과정이 주요 생성 채널이었음.',
+  },
+
+  // ── 중성미자 관련 ─────────────────────────────────
+  'eNu+eNu': {
+    possible: true,
+    title: '중성미자-중성미자 산란',
+    reaction: 'νe + νe → νe + νe',
+    force: '약한 핵력',
+    mediator: 'Z⁰ 보손',
+    products: [
+      { symbol:'νe', name:'전자 중성미자 ×2', color:'#81ECEC' },
+    ],
+    energy: '극히 작음 — 단면적 ~10⁻⁶² cm²',
+    desc: '중성미자끼리의 충돌은 자연계에서 가장 드문 반응 중 하나입니다. 전하도 색전하도 없어 오직 Z⁰ 보손을 통한 약력만 작용. 실험적으로 관측하는 것이 사실상 불가능합니다.',
+    realworld: '초신성 폭발 내부처럼 밀도가 극단적으로 높은 환경에서만 중요.',
+  },
+  'muNu+electron': {
+    possible: true,
+    title: '중성미자-전자 산란 (약전류)',
+    reaction: 'νμ + e⁻ → νμ + e⁻',
+    force: '약한 핵력',
+    mediator: 'Z⁰ 보손 (중성 전류)',
+    products: [
+      { symbol:'νμ', name:'뮤온 중성미자', color:'#55EFC4' },
+      { symbol:'e⁻', name:'전자 (반동)', color:'#74B9FF' },
+    ],
+    energy: '전자가 반동 운동에너지를 얻음',
+    desc: '1973년 CERN에서 처음 발견된 "중성 전류" 반응. W 보손 없이 Z⁰만으로 일어나는 약력 반응으로, 전기약력 이론(Weinberg-Salam)의 결정적 증거가 되었습니다.',
+    realworld: 'Gargamelle 거품 상자 실험(CERN, 1973)에서 최초 관측. 노벨물리학상 수상으로 이어짐.',
+  },
+
+  // ── 힉스 관련 ─────────────────────────────────────
+  'higgs+higgs': {
+    possible: true,
+    title: '힉스-힉스 산란',
+    reaction: 'H + H → H + H (자기 결합)',
+    force: '힉스 자기 결합',
+    mediator: '힉스 보손 자체',
+    products: [
+      { symbol:'H', name:'힉스 보손 ×2', color:'#FAB1A0' },
+    ],
+    energy: '~250 GeV 이상',
+    desc: '힉스 보손은 자기 자신과도 결합합니다(3중/4중 결합). 이 결합의 세기가 힉스 퍼텐셜의 모양을 결정하고, 우주의 전기약력 대칭성 자발 붕괴(빅뱅 직후)와 연결됩니다.',
+    realworld: 'LHC에서 아직 충분한 통계 없음. HL-LHC(고휘도 LHC, 2029~) 핵심 목표.',
+  },
+
+  // ── 기본 default ──────────────────────────────────
+  'default': {
+    possible: true,
+    title: '입자 산란',
+    reaction: 'A + B → A + B (탄성 산란)',
+    force: '해당 입자에 적용 가능한 힘',
+    mediator: '적절한 매개입자',
+    products: [],
+    energy: '보존',
+    desc: '두 입자 사이에 전하, 색전하, 약한 하이퍼전하에 따라 전자기력, 강한 핵력, 약한 핵력 중 하나 이상이 작용합니다. 모든 기본 반응에서 에너지, 운동량, 전하, 렙톤 수, 바리온 수는 보존됩니다.',
+    realworld: '입자 가속기에서 매우 다양한 산란 실험이 진행 중입니다.',
+  },
+};
+
+let colliderAnim = null;
+let colliderCanvas, cCtx, cW, cH;
+let ball1 = null, ball2 = null, exploding = false, explodeT = 0;
+
+function initColliderCanvas() {
+  colliderCanvas = document.getElementById('colliderCanvas');
+  cCtx = colliderCanvas.getContext('2d');
+  cW = colliderCanvas.offsetWidth;
+  cH = colliderCanvas.offsetHeight;
+  colliderCanvas.width = cW;
+  colliderCanvas.height = cH;
+  drawColliderIdle();
+}
+
+function drawColliderIdle() {
+  if (!cCtx) return;
+  cCtx.clearRect(0,0,cW,cH);
+  cCtx.fillStyle = '#080c1a';
+  cCtx.fillRect(0,0,cW,cH);
+  cCtx.strokeStyle = 'rgba(77,166,255,0.1)';
+  cCtx.lineWidth = 1;
+  for(let x=0;x<cW;x+=30){cCtx.beginPath();cCtx.moveTo(x,0);cCtx.lineTo(x,cH);cCtx.stroke();}
+  for(let y=0;y<cH;y+=30){cCtx.beginPath();cCtx.moveTo(0,y);cCtx.lineTo(cW,y);cCtx.stroke();}
+  cCtx.fillStyle = 'rgba(100,116,139,0.5)';
+  cCtx.font = '11px Space Mono';
+  cCtx.textAlign = 'center';
+  cCtx.fillText('← 입자를 선택하고 충돌! 버튼을 누르세요 →', cW/2, cH/2);
+}
+
+function collideParticles() {
+  if (colliderAnim) cancelAnimationFrame(colliderAnim);
+  const id1 = document.getElementById('p1Select').value;
+  const id2 = document.getElementById('p2Select').value;
+  const p1 = PARTICLES[id1], p2 = PARTICLES[id2];
+
+  ball1 = { x: 20, y: cH/2, vx: 3.5, color: p1.color, symbol: p1.symbol };
+  ball2 = { x: cW-20, y: cH/2, vx: -3.5, color: p2.color, symbol: p2.symbol };
+  exploding = false; explodeT = 0;
+
+  const key = id1+'+'+id2;
+  const result = collisionResults[key] || collisionResults[id2+'+'+id1] || collisionResults['default'];
+  document.getElementById('collideResult').innerHTML = '<span style="color:var(--text-dim)">충돌 중...</span>';
+
+  function renderCollisionResult(r) {
+    const possibleBadge = r.possible
+      ? `<span style="background:rgba(52,211,153,0.15);color:#34d399;border:1px solid rgba(52,211,153,0.4);padding:2px 9px;border-radius:10px;font-size:0.7rem;font-family:var(--font-mono);">✓ 실험적으로 가능</span>`
+      : `<span style="background:rgba(248,113,113,0.12);color:#f87171;border:1px solid rgba(248,113,113,0.4);padding:2px 9px;border-radius:10px;font-size:0.7rem;font-family:var(--font-mono);">✗ 자연계에서 불가능/매우 희귀</span>`;
+
+    const productsHTML = r.products.length > 0
+      ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px;">
+          ${r.products.map(p=>`<span style="background:${p.color}22;border:1px solid ${p.color}66;color:${p.color};padding:3px 10px;border-radius:8px;font-family:var(--font-mono);font-size:0.78rem;">${p.symbol} <span style="color:#94a3b8;font-size:0.68rem;">${p.name}</span></span>`).join('')}
+        </div>`
+      : `<div style="color:var(--text-dim);font-size:0.78rem;margin:4px 0;">생성 입자 없음 (산란만 발생)</div>`;
+
+    document.getElementById('collideResult').innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <span style="font-weight:700;font-size:0.92rem;color:var(--text);">${r.title}</span>
+        ${possibleBadge}
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-family:var(--font-mono);font-size:0.8rem;color:#a78bfa;letter-spacing:0.02em;">${r.reaction}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+        <div style="background:#0d1225;border-radius:7px;padding:7px 10px;">
+          <div style="font-size:0.65rem;color:var(--text-dim);margin-bottom:2px;">⚡ 작용하는 힘</div>
+          <div style="font-size:0.78rem;color:#4da6ff;">${r.force}</div>
+        </div>
+        <div style="background:#0d1225;border-radius:7px;padding:7px 10px;">
+          <div style="font-size:0.65rem;color:var(--text-dim);margin-bottom:2px;">🔗 매개입자</div>
+          <div style="font-size:0.78rem;color:#fbbf24;">${r.mediator}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:6px;">
+        <div style="font-size:0.65rem;color:var(--text-dim);margin-bottom:4px;">🔬 생성되는 입자</div>
+        ${productsHTML}
+      </div>
+      <div style="background:#0d1225;border-radius:7px;padding:7px 10px;margin-bottom:6px;">
+        <div style="font-size:0.65rem;color:var(--text-dim);margin-bottom:2px;">⚖️ 에너지 조건</div>
+        <div style="font-size:0.78rem;color:#34d399;font-family:var(--font-mono);">${r.energy}</div>
+      </div>
+      <div style="font-size:0.8rem;color:#cbd5e1;line-height:1.6;margin-bottom:6px;">${r.desc}</div>
+      <div style="background:rgba(167,139,250,0.08);border-left:2px solid #a78bfa;padding:6px 10px;border-radius:0 6px 6px 0;">
+        <span style="font-size:0.65rem;color:#a78bfa;font-family:var(--font-mono);">🏛 실제 실험 &nbsp;</span>
+        <span style="font-size:0.75rem;color:#94a3b8;">${r.realworld}</span>
+      </div>
+    `;
+  }
+
+  function animCollider() {
+    cCtx.clearRect(0,0,cW,cH);
+    cCtx.fillStyle = '#080c1a';
+    cCtx.fillRect(0,0,cW,cH);
+    cCtx.strokeStyle = 'rgba(77,166,255,0.07)';
+    for(let x=0;x<cW;x+=30){cCtx.beginPath();cCtx.moveTo(x,0);cCtx.lineTo(x,cH);cCtx.stroke();}
+    for(let y=0;y<cH;y+=30){cCtx.beginPath();cCtx.moveTo(0,y);cCtx.lineTo(cW,y);cCtx.stroke();}
+
+    if (!exploding) {
+      // 이동 중
+      ball1.x += ball1.vx;
+      ball2.x += ball2.vx;
+
+      [ball1,ball2].forEach(b => {
+        // 후광
+        const g = cCtx.createRadialGradient(b.x,b.y,0,b.x,b.y,25);
+        g.addColorStop(0,b.color+'66');g.addColorStop(1,'transparent');
+        cCtx.fillStyle=g;cCtx.beginPath();cCtx.arc(b.x,b.y,25,0,Math.PI*2);cCtx.fill();
+        // 입자
+        cCtx.beginPath();cCtx.arc(b.x,b.y,14,0,Math.PI*2);
+        cCtx.fillStyle=b.color+'44';cCtx.fill();
+        cCtx.strokeStyle=b.color;cCtx.lineWidth=2;cCtx.stroke();
+        cCtx.fillStyle=b.color;cCtx.font='bold 11px Space Mono';
+        cCtx.textAlign='center';cCtx.textBaseline='middle';
+        cCtx.fillText(b.symbol,b.x,b.y);cCtx.textBaseline='alphabetic';
+      });
+
+      if (Math.abs(ball1.x - ball2.x) < 30) {
+        exploding = true;
+        renderCollisionResult(result);
+      }
+      colliderAnim = requestAnimationFrame(animCollider);
+    } else {
+      // 폭발
+      explodeT++;
+      const blasts = [p1.color, p2.color, '#FFEAA7', '#ffffff'];
+      blasts.forEach((c,i) => {
+        const angle = (i/blasts.length)*Math.PI*2 + explodeT*0.05;
+        const r = explodeT * 2.5;
+        const bx = cW/2 + Math.cos(angle)*r, by = cH/2 + Math.sin(angle)*r;
+        cCtx.beginPath();cCtx.arc(bx,by,6,0,Math.PI*2);
+        cCtx.fillStyle = c + Math.max(0,Math.floor((1-explodeT/40)*255)).toString(16).padStart(2,'0');
+        cCtx.fill();
+      });
+      // 중심 섬광
+      const grd = cCtx.createRadialGradient(cW/2,cH/2,0,cW/2,cH/2,explodeT*3);
+      grd.addColorStop(0,'rgba(255,255,255,'+Math.max(0,0.8-explodeT*0.05)+')');
+      grd.addColorStop(1,'transparent');
+      cCtx.fillStyle=grd;cCtx.beginPath();cCtx.arc(cW/2,cH/2,explodeT*3,0,Math.PI*2);cCtx.fill();
+
+      if (explodeT < 45) colliderAnim = requestAnimationFrame(animCollider);
+    }
+  }
+  animCollider();
+  showToast('충돌 시작! 💥');
+}
+
+// ── 퀴즈 ──
+function loadQuiz(idx) {
+  quizAnswered = false;
+  const q = QUIZZES[idx % QUIZZES.length];
+  const area = document.getElementById('quizArea');
+  area.innerHTML = `
+    <p style="font-size:0.7rem;color:var(--text-dim);font-family:var(--font-mono);margin-bottom:8px;">문제 ${(idx%QUIZZES.length)+1} / ${QUIZZES.length}</p>
+    <div class="quiz-question">${q.q}</div>
+    <div class="quiz-options">
+      ${q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answerQuiz(${i},${q.ans},'${q.exp.replace(/'/g,"\\'")}')">${o}</button>`).join('')}
+    </div>
+    <div class="quiz-result" id="quizResult"></div>
+  `;
+}
+
+function answerQuiz(chosen, correct, exp) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+  document.querySelectorAll('.quiz-opt').forEach((btn,i) => {
+    btn.disabled = true;
+    if (i === correct) btn.classList.add('correct');
+    else if (i === chosen) btn.classList.add('wrong');
+  });
+  const res = document.getElementById('quizResult');
+  res.className = 'quiz-result show ' + (chosen===correct?'ok':'no');
+  res.innerHTML = (chosen===correct?'🎉 정답! ':'❌ 오답. ') + exp;
+}
+
+function nextQuiz() {
+  quizIdx++;
+  loadQuiz(quizIdx);
+}
+
+// ── 질량 칩 ──
+function buildMassChips() {
+  const el = document.getElementById('massChips');
+  const items = [
+    { label:'전자 0.511 MeV', color:'#74B9FF' },
+    { label:'뮤온 106 MeV', color:'#0984E3' },
+    { label:'타우 1.78 GeV', color:'#6C5CE7' },
+    { label:'W 보손 80.4 GeV', color:'#FD79A8' },
+    { label:'Z 보손 91.2 GeV', color:'#FDCB6E' },
+    { label:'힉스 125 GeV', color:'#FAB1A0' },
+    { label:'top 쿼크 173 GeV', color:'#FF8B94' },
+  ];
+  items.forEach(item => {
+    const chip = document.createElement('span');
+    chip.style.cssText = `padding:4px 10px;border-radius:12px;font-size:0.72rem;font-family:var(--font-mono);background:${item.color}22;border:1px solid ${item.color}55;color:${item.color};`;
+    chip.textContent = item.label;
+    el.appendChild(chip);
+  });
+}
+
+// ── 토스트 ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════
+//  초기화
+// ══════════════════════════════════════
+// 첫 시뮬레이션 파인먼 다이어그램 그리기
+setTimeout(() => {
+  if (selectedDecay) drawFeynman(selectedDecay);
+}, 100);
+
+// 리사이즈 대응
+window.addEventListener('resize', () => {
+  if (simCanvas) {
+    simW = simCanvas.offsetWidth;
+    simH = simCanvas.offsetHeight;
+    simCanvas.width = simW;
+    simCanvas.height = simH;
+    if (simState === 'idle') drawIdleState();
+  }
+  if (colliderCanvas) {
+    cW = colliderCanvas.offsetWidth;
+    cH = colliderCanvas.offsetHeight;
+    colliderCanvas.width = cW;
+    colliderCanvas.height = cH;
+    drawColliderIdle();
+  }
+});
+</script>
+</body>
+</html>
